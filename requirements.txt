@@ -1,0 +1,7 @@
+starlette==0.13.1
+uvicorn==0.11.2
+telepot==12.7
+ipdb==0.12.3
+Flask==1.1.1
+boto3==1.11.10
+python-dotenv==0.10.5

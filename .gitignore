@@ -1,0 +1,11 @@
+*.sqlite
+.env
+
+*.pyc
+*.pyo
+__pycache__/
+scripts/
+.idea
+json/
+
+dungeon_master
