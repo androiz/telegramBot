@@ -5,7 +5,8 @@ import boto3
 from botocore.config import Config
 
 from settings import (
-    AWS_DYNAMO_ACCESS_KEY, AWS_DYNAMO_SECRET_KEY, PROXY, PROXY_AUTH_USER, PROXY_AUTH_PASS, AWS_DYNAMO_REGION
+    AWS_DYNAMO_ACCESS_KEY, AWS_DYNAMO_SECRET_KEY, PROXY, PROXY_AUTH_USER, PROXY_AUTH_PASS,
+    PROXY_AUTH_URL, PROXY_AUTH_PROTOCOL, AWS_DYNAMO_REGION
 )
 
 
@@ -37,9 +38,6 @@ class DynamoDB:
 
     def delete(self, key):
         self.__delitem__(key)
-
-    # def pop(self, key):
-    #     return self.__delitem__(key)
 
     def __delitem__(self, key):
         """
@@ -111,7 +109,7 @@ class DynamoDB:
 
 dynamo_db = DynamoDB(
     table_name='TelegramConversations',
-    config=Config(proxies={'https': f'http://{PROXY_AUTH_USER}:{PROXY_AUTH_PASS}@proxy.indra.es:8080'}) if PROXY else None
+    config=Config(proxies={'https': f'{PROXY_AUTH_PROTOCOL}://{PROXY_AUTH_USER}:{PROXY_AUTH_PASS}@{PROXY_AUTH_URL}'}) if PROXY else None
 )
 
 

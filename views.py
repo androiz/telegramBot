@@ -1,7 +1,6 @@
 import logging
 
 import telepot
-from starlette.responses import JSONResponse
 from telepot.namedtuple import InlineKeyboardMarkup, InlineKeyboardButton
 
 
@@ -12,39 +11,23 @@ from dice_roll import get_dice_roll
 from spell_info.pool import sqlite_db
 from spell_info.utils import get_spell_type_sentence
 
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 if PROXY:
-    telepot.api.set_proxy(PROXY_AUTH_URL, (PROXY_AUTH_USER, PROXY_AUTH_PASS))
+    auth_basic = None
+    if PROXY_AUTH_USER and PROXY_AUTH_PASS:
+        auth_basic = (PROXY_AUTH_USER, PROXY_AUTH_PASS)
+
+    telepot.api.set_proxy(f'{PROXY_AUTH_PROTOCOL}://{PROXY_AUTH_URL}', basic_auth=auth_basic)
+
 
 bot = telepot.Bot(TELEGRAM_TOKEN)
 bot.setWebhook('')
 bot.setWebhook(TELEGRAM_WEBHOOK_URL)
 bot.getMe()
-
-
-UPDATE_ID_ITER = None
-
-TELEGRAM_MSG_TYPES = [
-    'callback_query', 'message',
-]
-
-
-async def handler(request):
-    global UPDATE_ID_ITER
-
-    json_data = await request.json()
-    update_id = json_data.get('update_id')
-
-    if update_id:
-        if not UPDATE_ID_ITER or update_id > UPDATE_ID_ITER:
-            key = telepot._find_first_key(json_data, TELEGRAM_MSG_TYPES)
-            flow(json_data[key])
-
-        UPDATE_ID_ITER = update_id
-
-    return JSONResponse({}, status_code=200)
 
 
 def flow(msg):
@@ -175,3 +158,6 @@ def get_spell_type_keyboard():
         [InlineKeyboardButton(text='Descripción', callback_data=f'spell_type:description')],
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+__all__ = ['flow']

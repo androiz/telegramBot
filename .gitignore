@@ -9,3 +9,5 @@ scripts/
 json/
 
 dungeon_master
+
+local.py
