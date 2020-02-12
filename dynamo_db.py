@@ -1,8 +1,11 @@
 import pickle
 import logging
+from random import randint
+from datetime import datetime
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from settings import (
     AWS_DYNAMO_ACCESS_KEY, AWS_DYNAMO_SECRET_KEY, PROXY, PROXY_AUTH_USER, PROXY_AUTH_PASS,
@@ -105,6 +108,138 @@ class DynamoDB:
                 },
             }
         )
+
+    def set_calendar(self, key_datetime, json_data):
+        calendar_id = f'{datetime.now().timestamp()}{randint(100, 999)}'
+
+        self.client.put_item(
+            TableName='TelegramCalendar',
+            Item={
+                'CalendarId': {
+                    'N': calendar_id
+                },
+                'CalendarDT': {
+                    'S': key_datetime.strftime('%Y%m%dT%H%M%S')
+                },
+                'Data': {
+                    'B': pickle.dumps(json_data)
+                },
+            }
+        )
+
+        return calendar_id
+
+    def get_calendar(self):
+        _ = self.client.scan(
+            TableName='TelegramCalendar',
+            # Limit=10,
+            ScanFilter={
+                'CalendarDT': {
+                    'AttributeValueList': [
+                        {
+                            'S': datetime.now().strftime('%Y%m%dT%H%M%S'),
+                        }
+                    ],
+                    'ComparisonOperator': 'GE'
+                }
+            }
+        )
+
+        # Todo: Optimizar
+        items = []
+        for item in _.get('Items', []):
+            data = pickle.loads(item.get('Data', {}).get('B'))
+
+            data['calendar_id'] = item.get('CalendarId', {}).get('N')
+            data['calendar_dt'] = item.get('CalendarDT', {}).get('S')
+
+            items.append(data)
+
+        items.sort(key=lambda _: _.get('calendar_dt'))
+        return items[:3]
+
+    def clean_calendar(self):
+        _ = self.client.scan(
+            TableName='TelegramCalendar',
+            # Limit=10,
+            ScanFilter={
+                'CalendarDT': {
+                    'AttributeValueList': [
+                        {
+                            'S': datetime.now().strftime('%Y%m%dT%H%M%S'),
+                        }
+                    ],
+                    'ComparisonOperator': 'LT'
+                }
+            }
+        )
+        for item in _.get('Items', []):
+            self.client.delete_item(
+                TableName='TelegramCalendar',
+                Key={
+                    'CalendarId': {
+                        'N': str(item.get('CalendarId', {}).get('N'))
+                    },
+                    'CalendarDT': {
+                        'S': item.get('CalendarDT', {}).get('S')
+                    }
+                }
+            )
+
+    def get_calendar_by_id(self, calendar_id):
+        try:
+            _ = self.client.scan(
+                TableName='TelegramCalendar',
+                ScanFilter={
+                    'CalendarId': {
+                        'AttributeValueList': [
+                            {
+                                'N': calendar_id
+                            }
+                        ],
+                        'ComparisonOperator': 'EQ'
+                    }
+                }
+            )
+        except ClientError:
+            return
+
+        if items := _.get('Items', []):
+            return pickle.loads(items[0].get('Data', {}).get('B'))
+
+    def set_calendar_by_id(self, calendar_id, json_data):
+        try:
+            _ = self.client.scan(
+                TableName='TelegramCalendar',
+                ScanFilter={
+                    'CalendarId': {
+                        'AttributeValueList': [
+                            {
+                                'N': calendar_id
+                            }
+                        ],
+                        'ComparisonOperator': 'EQ'
+                    }
+                }
+            )
+        except ClientError:
+            return
+
+        if items := _.get('Items', []):
+            self.client.put_item(
+                TableName='TelegramCalendar',
+                Item={
+                    'CalendarId': {
+                        'N': items[0].get('CalendarId', {}).get('N')
+                    },
+                    'CalendarDT': {
+                        'S': items[0].get('CalendarDT', {}).get('S')
+                    },
+                    'Data': {
+                        'B': pickle.dumps(json_data)
+                    },
+                }
+            )
 
 
 dynamo_db = DynamoDB(
