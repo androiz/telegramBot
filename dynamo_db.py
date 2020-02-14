@@ -3,7 +3,7 @@ import logging
 import time
 
 from random import randint
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import boto3
 from botocore.config import Config
@@ -153,7 +153,11 @@ class DynamoDBCalendar(DynamoDB):
                 }
             }
         )
-        for item in _.get('Items', []):
+
+        items = _.get('Items', [])
+        logger.info(f'Deleting {len(items)} items...')
+
+        for item in items:
             self.client.delete_item(
                 TableName='TelegramCalendar',
                 Key={
