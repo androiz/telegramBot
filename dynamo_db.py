@@ -1,7 +1,9 @@
 import pickle
 import logging
+import time
+
 from random import randint
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import boto3
 from botocore.config import Config
@@ -18,8 +20,9 @@ logger.setLevel(logging.INFO)
 
 
 class DynamoDB:
-    def __init__(self, table_name=None, config=None):
-        self.table_name = table_name
+    table_name = None
+
+    def __init__(self, config=None):
         self.client = boto3.client(
             'dynamodb',
             region_name=AWS_DYNAMO_REGION,
@@ -29,79 +32,53 @@ class DynamoDB:
         )
 
     def get(self, key, default=None):
+        pass
+
+    def set(self, key, value):
+        pass
+
+    def delete(self, key):
+        pass
+
+
+class DynamoDBConversations(DynamoDB):
+    table_name = 'TelegramConversations'
+
+    def delete(self, key):
+        self.client.delete_item(
+            TableName=self.table_name,
+            Key={
+                'ChatId': {
+                    'N': str(key)
+                }
+            }
+        )
+
+    def get(self, key, default=None):
         try:
-            return self.__getitem__(key)
+            _ = self.client.get_item(
+                TableName=self.table_name,
+                Key={
+                    'ChatId': {
+                        'N': str(key)
+                    }
+                }
+            )
+            return pickle.loads(_.get('Item', {}).get('State', {}).get('B'))
         except TypeError:
             logger.info(f'DynamoDB.get({key}): Key {key} does not exists')
 
         return default
 
-    def set(self, key, value):
-        self.__setitem__(key, value)
-
-    def delete(self, key):
-        self.__delitem__(key)
-
-    def __delitem__(self, key):
-        """
-        self.client.delete_item(
-            TableName=self.table_name,
-            Key={
-                'ChatId': {
-                    'N': 2
-                }
-            }
-        )
-        """
-        self.client.delete_item(
-            TableName=self.table_name,
-            Key={
-                'ChatId': {
-                    'N': str(key)
-                }
-            }
-        )
-
-    def __getitem__(self, key):
-        """
-        response = client.get_item(
-            TableName='TelegramConversations',
-            Key={
-                'ChatId': {
-                    'S': '2'
-                }
-            }
-        )
-        """
-        _ = self.client.get_item(
-            TableName=self.table_name,
-            Key={
-                'ChatId': {
-                    'N': str(key)
-                }
-            }
-        )
-        return pickle.loads(_.get('Item', {}).get('State', {}).get('B'))
-
-    def __setitem__(self, key, value):
-        """
-        client.put_item(
-            TableName='TelegramConversations',
-            Item={
-                'ChatId': {
-                    'S': '2'
-                },
-                'state': {
-                    'S': 'prueba'
-                },
-            }
-        )
-        """
+    def set(self, key, value, ttl=60):
         self.client.put_item(
             TableName=self.table_name,
             Item={
                 'ChatId': {
                     'N': str(key)
+                },
+                'ExpirationTime': {
+                    'N': str(int(time.time()) + ttl)
                 },
                 'State': {
                     'B': pickle.dumps(value)
@@ -109,11 +86,15 @@ class DynamoDB:
             }
         )
 
+
+class DynamoDBCalendar(DynamoDB):
+    table_name = 'TelegramCalendar'
+
     def set_calendar(self, key_datetime, json_data):
         calendar_id = f'{datetime.now().timestamp()}{randint(100, 999)}'
 
         self.client.put_item(
-            TableName='TelegramCalendar',
+            TableName=self.table_name,
             Item={
                 'CalendarId': {
                     'N': calendar_id
@@ -131,8 +112,7 @@ class DynamoDB:
 
     def get_calendar(self):
         _ = self.client.scan(
-            TableName='TelegramCalendar',
-            # Limit=10,
+            TableName=self.table_name,
             ScanFilter={
                 'CalendarDT': {
                     'AttributeValueList': [
@@ -160,7 +140,7 @@ class DynamoDB:
 
     def clean_calendar(self):
         _ = self.client.scan(
-            TableName='TelegramCalendar',
+            TableName=self.table_name,
             # Limit=10,
             ScanFilter={
                 'CalendarDT': {
@@ -189,7 +169,7 @@ class DynamoDB:
     def get_calendar_by_id(self, calendar_id):
         try:
             _ = self.client.scan(
-                TableName='TelegramCalendar',
+                TableName=self.table_name,
                 ScanFilter={
                     'CalendarId': {
                         'AttributeValueList': [
@@ -210,7 +190,7 @@ class DynamoDB:
     def set_calendar_by_id(self, calendar_id, json_data):
         try:
             _ = self.client.scan(
-                TableName='TelegramCalendar',
+                TableName=self.table_name,
                 ScanFilter={
                     'CalendarId': {
                         'AttributeValueList': [
@@ -242,10 +222,13 @@ class DynamoDB:
             )
 
 
-dynamo_db = DynamoDB(
-    table_name='TelegramConversations',
+dynamo_db_conversations = DynamoDBConversations(
+    config=Config(proxies={'https': f'{PROXY_AUTH_PROTOCOL}://{PROXY_AUTH_USER}:{PROXY_AUTH_PASS}@{PROXY_AUTH_URL}'}) if PROXY else None
+)
+
+dynamo_db_calendar = DynamoDBCalendar(
     config=Config(proxies={'https': f'{PROXY_AUTH_PROTOCOL}://{PROXY_AUTH_USER}:{PROXY_AUTH_PASS}@{PROXY_AUTH_URL}'}) if PROXY else None
 )
 
 
-__all__ = ['dynamo_db']
+__all__ = ['dynamo_db_conversations', 'dynamo_db_calendar']
