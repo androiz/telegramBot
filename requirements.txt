@@ -1,5 +1,5 @@
 starlette==0.13.1
-uvicorn==0.11.2
+uvicorn==0.11.7
 telepot==12.7
 ipdb==0.12.3
 Flask==1.1.1
